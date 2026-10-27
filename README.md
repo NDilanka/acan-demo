@@ -7,11 +7,11 @@ the `.ts` sources directly by stripping types.
 
 ## Run
 
-Requires Node 24 or newer.
+Requires Bun 1.4 or newer.
 
 ```sh
-npm install        # dev dependencies only: typescript and @types/node, for type checking
-npm start          # serves on PORT, default 3000
+bun install        # dev dependencies only: typescript and @types/node, for type checking
+bun start          # serves on PORT, default 3000
 ```
 
 Check that it is up:
@@ -23,11 +23,11 @@ curl http://localhost:3000/health   # {"ok":true}
 ## Test
 
 ```sh
-npm test                                  # all tests, under 5 s
-node --test test/login.test.ts            # login and session flow
-node --test test/links.test.ts            # link creation, redirects, ownership
-node --test test/dashboard.test.ts        # dashboard contents and escaping
-npm run typecheck                         # tsc --noEmit, strict mode
+bun test                                  # all tests, under 5 s
+bun test test/login.test.ts               # login and session flow
+bun test test/links.test.ts               # link creation, redirects, ownership
+bun test test/dashboard.test.ts           # dashboard contents and escaping
+bun run typecheck                         # tsc --noEmit, strict mode
 ```
 
 Each test starts the app on an ephemeral port with its own in-memory store, and stops it

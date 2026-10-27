@@ -142,7 +142,7 @@ function redirectRoute(ctx: Context): void {
   sendRedirect(ctx.res, link.target);
 }
 
-// Entry point: `npm start` runs this file directly. Tests import createApp() and never reach this block.
+// Entry point: `bun start` runs this file directly. Tests import createApp() and never reach this block.
 const isEntry = process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isEntry) {
