@@ -1,0 +1,1396 @@
+{
+  "version": "acan-probes/1",
+  "fixtures": [
+    {
+      "id": "f-empty",
+      "recipe": [],
+      "isolation": "fresh_instance",
+      "runner_contract": "acan-runner/1"
+    },
+    {
+      "id": "f-accounts",
+      "recipe": [
+        {
+          "step": "http",
+          "id": "f1",
+          "client": "client-a",
+          "request": {
+            "method": "POST",
+            "path": "/api/signup",
+            "body": { "username": "alice", "password": "alice-fixture-pw" }
+          },
+          "redirect": "manual",
+          "deadline_ms": 2000
+        },
+        {
+          "step": "http",
+          "id": "f2",
+          "client": "client-a",
+          "request": {
+            "method": "POST",
+            "path": "/api/login",
+            "body": { "username": "alice", "password": "alice-fixture-pw" }
+          },
+          "redirect": "manual",
+          "deadline_ms": 2000
+        },
+        {
+          "step": "capture",
+          "id": "f3",
+          "from": "f2",
+          "source": { "part": "body", "path": "token" },
+          "binding": "alice_session",
+          "kind": "session",
+          "actor": "alice"
+        },
+        {
+          "step": "capture",
+          "id": "f4",
+          "from": "f2",
+          "source": { "part": "body", "path": "user.id" },
+          "binding": "alice_id",
+          "kind": "identifier"
+        },
+        {
+          "step": "http",
+          "id": "f5",
+          "client": "client-a",
+          "request": {
+            "method": "POST",
+            "path": "/api/signup",
+            "body": { "username": "bob", "password": "bob-fixture-pw" }
+          },
+          "redirect": "manual",
+          "deadline_ms": 2000
+        },
+        {
+          "step": "http",
+          "id": "f6",
+          "client": "client-a",
+          "request": {
+            "method": "POST",
+            "path": "/api/login",
+            "body": { "username": "bob", "password": "bob-fixture-pw" }
+          },
+          "redirect": "manual",
+          "deadline_ms": 2000
+        },
+        {
+          "step": "capture",
+          "id": "f7",
+          "from": "f6",
+          "source": { "part": "body", "path": "token" },
+          "binding": "bob_session",
+          "kind": "session",
+          "actor": "bob"
+        },
+        {
+          "step": "capture",
+          "id": "f8",
+          "from": "f5",
+          "source": { "part": "body", "path": "id" },
+          "binding": "bob_id",
+          "kind": "identifier"
+        },
+        {
+          "step": "http",
+          "id": "f9",
+          "client": "client-a",
+          "request": {
+            "method": "POST",
+            "path": "/api/login",
+            "body": { "username": "alice", "password": "alice-fixture-pw" }
+          },
+          "redirect": "manual",
+          "deadline_ms": 2000
+        },
+        {
+          "step": "capture",
+          "id": "f10",
+          "from": "f9",
+          "source": { "part": "body", "path": "token" },
+          "binding": "alice_relogin_session",
+          "kind": "session",
+          "actor": "alice_relogin"
+        }
+      ],
+      "isolation": "fresh_instance",
+      "runner_contract": "acan-runner/1"
+    }
+  ],
+  "probes": [
+    {
+      "label": "health",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-empty",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/health" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "signup-store",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-empty",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/signup",
+              "body": { "username": "carol", "password": "carol-fixture-pw" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "observe_side_effect",
+            "id": "s2",
+            "sink": "store",
+            "correlate": "s1",
+            "barrier": { "timeout_ms": 2000, "quiet_ms": 100 }
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "signup-rules",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-empty",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/signup",
+              "body": { "username": "dave", "password": "short" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s2",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/signup",
+              "body": { "username": "Dave!", "password": "dave-fixture-pw" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/signup",
+              "body": { "username": "dave", "password": "dave-fixture-pw" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/signup",
+              "body": { "username": "dave", "password": "dave-fixture-pw" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "login-failures",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/login",
+              "body": { "username": "alice", "password": "wrong-fixture-pw" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s2",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/login",
+              "body": { "username": "nobody", "password": "alice-fixture-pw" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "logout-keeps-other-session",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/links" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s2",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/logout" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/links" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "actor": "alice_relogin",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/links" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "anonymous-link-api",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/links" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s2",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "https://example.test/anon" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "client": "client-a",
+            "request": { "method": "DELETE", "path": "/api/links/missing-code" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/health" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "links-create-validation",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "actor": "alice",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "javascript:alert(1)" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s2",
+            "actor": "alice",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "ftp://example.test/file" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "actor": "alice",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "not a url" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "actor": "alice",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "https://example.test/ok" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "links-create-list-delete",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "actor": "alice",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "https://example.test/a" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "capture",
+            "id": "s2",
+            "from": "s1",
+            "source": { "part": "body", "path": "code" },
+            "binding": "link_code",
+            "kind": "identifier"
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/links" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "actor": "bob",
+            "client": "client-a",
+            "request": { "method": "DELETE", "path": "/api/links/${link_code}" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s5",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "DELETE", "path": "/api/links/${link_code}" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s6",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/links" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [{ "binding": "link_code", "kind": "identifier" }],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } },
+          { "path": "body.code", "kind": { "kind": "canonical_identity", "binding": "link_code" } },
+          { "path": "body.links[*].code", "kind": { "kind": "canonical_identity", "binding": "link_code" } }
+        ],
+        "relations": [
+          {
+            "kind": "references",
+            "from": { "step_id": "s1", "path": "body.code" },
+            "to": { "step_id": "s3", "path": "body.links[*].code" }
+          }
+        ],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "link-redirect-and-clicks",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "actor": "alice",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "https://example.test/landing" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "capture",
+            "id": "s2",
+            "from": "s1",
+            "source": { "part": "body", "path": "code" },
+            "binding": "link_code",
+            "kind": "identifier"
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/${link_code}" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/links" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s5",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/missing-code-xyz" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s6",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/unknown-path" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [{ "binding": "link_code", "kind": "identifier" }],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } },
+          { "path": "body.code", "kind": { "kind": "canonical_identity", "binding": "link_code" } },
+          { "path": "body.links[*].code", "kind": { "kind": "canonical_identity", "binding": "link_code" } }
+        ],
+        "relations": [
+          {
+            "kind": "references",
+            "from": { "step_id": "s1", "path": "body.code" },
+            "to": { "step_id": "s4", "path": "body.links[*].code" }
+          }
+        ],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "dashboard-session",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/dashboard" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s2",
+            "actor": "alice",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "https://example.test/dash" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/dashboard" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "actor": "bob",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/dashboard" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "dashboard", "links", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "link-quota-window",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q1" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s2",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q2" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q3" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q4" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s5",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q5" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s6",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q6" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s7",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q7" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s8",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q8" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s9",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q9" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s10",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q10" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s11",
+            "actor": "alice_relogin",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q11" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s12",
+            "actor": "bob",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/bob" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s13",
+            "actor": "alice",
+            "client": "client-b",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q13" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "advance_time",
+            "id": "s14",
+            "by_ms": 59999
+          },
+          {
+            "step": "http",
+            "id": "s15",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q15" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "advance_time",
+            "id": "s16",
+            "by_ms": 1
+          },
+          {
+            "step": "http",
+            "id": "s17",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q17" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    },
+    {
+      "label": "login-over-quota",
+      "spec": {
+        "surface": "http",
+        "fixture": "f-accounts",
+        "steps": [
+          {
+            "step": "http",
+            "id": "s1",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q1" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s2",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q2" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s3",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q3" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s4",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q4" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s5",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q5" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s6",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q6" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s7",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q7" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s8",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q8" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s9",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q9" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s10",
+            "actor": "alice",
+            "client": "client-a",
+            "request": { "method": "POST", "path": "/api/links", "body": { "url": "https://example.test/q10" } },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s11",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/login",
+              "body": { "username": "alice", "password": "alice-fixture-pw" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "capture",
+            "id": "s12",
+            "from": "s11",
+            "source": { "part": "body", "path": "token" },
+            "binding": "alice_fresh_session",
+            "kind": "session",
+            "actor": "alice_fresh"
+          },
+          {
+            "step": "http",
+            "id": "s13",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/login",
+              "body": { "username": "alice", "password": "wrong-fixture-pw" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s14",
+            "actor": "alice_fresh",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/api/links" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s15",
+            "client": "client-a",
+            "request": {
+              "method": "POST",
+              "path": "/api/links",
+              "body": { "url": "https://example.test/anon" }
+            },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          },
+          {
+            "step": "http",
+            "id": "s16",
+            "client": "client-a",
+            "request": { "method": "GET", "path": "/health" },
+            "redirect": "manual",
+            "deadline_ms": 2000
+          }
+        ]
+      },
+      "origin": "human",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "store", "errors"],
+        "source": "static"
+      },
+      "normalization": {
+        "version": "norm/1",
+        "typed_captures": [],
+        "projections": [
+          { "path": "body.token", "kind": { "kind": "redact_secret" } },
+          { "path": "cookie.session", "kind": { "kind": "redact_secret" } }
+        ],
+        "relations": [],
+        "maskable_paths": [
+          "body.token",
+          "cookie.session",
+          "body.id",
+          "body.user.id",
+          "body.code",
+          "body.shortPath",
+          "body.createdAt",
+          "body.links[*].code",
+          "body.links[*].createdAt",
+          "side_effect.store.users[*].id",
+          "side_effect.store.users[*].passwordHash",
+          "side_effect.store.users[*].createdAt",
+          "side_effect.store.sessions[*].tokenHash",
+          "side_effect.store.sessions[*].userId",
+          "side_effect.store.links[*].code",
+          "side_effect.store.links[*].ownerId",
+          "side_effect.store.links[*].createdAt"
+        ]
+      }
+    }
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "route_template": "/health",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    },
+    {
+      "method": "POST",
+      "route_template": "/api/signup",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "store", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    },
+    {
+      "method": "POST",
+      "route_template": "/api/login",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "store", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    },
+    {
+      "method": "POST",
+      "route_template": "/api/logout",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "store", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    },
+    {
+      "method": "GET",
+      "route_template": "/api/links",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    },
+    {
+      "method": "POST",
+      "route_template": "/api/links",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    },
+    {
+      "method": "DELETE",
+      "route_template": "/api/links/:code",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    },
+    {
+      "method": "GET",
+      "route_template": "/dashboard",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "dashboard", "links", "store", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    },
+    {
+      "method": "GET",
+      "route_template": "/:code",
+      "route_path": {
+        "machines": ["server", "middleware", "ratelimit", "auth", "links", "store", "errors"],
+        "source": "static"
+      },
+      "status": { "status": "covered" }
+    }
+  ]
+}

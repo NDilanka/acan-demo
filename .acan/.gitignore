@@ -1,0 +1,8 @@
+# Runtime state: stores, run output and tokens. The protected inputs next to this file stay tracked.
+*.db
+*.db-shm
+*.db-wal
+tokens.json
+stores/
+runs/
+observations/

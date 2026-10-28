@@ -1,0 +1,24 @@
+{
+  "version": "acan-app/1",
+  "runner_contract": "acan-runner/1",
+  "runtime": "bun-1.4.4",
+  "boot": ["bun", "run", ".acan/fixtures/boot.ts"],
+  "port_env": "PORT",
+  "ready": {
+    "path": "/health",
+    "status": 200,
+    "timeout_ms": 10000
+  },
+  "store": "fresh_per_sequence",
+  "clock": {
+    "kind": "http_endpoint",
+    "path": "/__acan/clock"
+  },
+  "sinks": ["store"],
+  "env": {},
+  "limits": {
+    "max_requests": 64,
+    "max_output_bytes": 65536,
+    "sequence_timeout_ms": 30000
+  }
+}
