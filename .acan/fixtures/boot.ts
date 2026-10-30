@@ -1,11 +1,11 @@
 // Boot fixture for the Acan runner. The runner starts this file in the prepared worktree of one
 // commit, once per probe sequence, and sets PORT to a free port it picked. The commit's own
 // createApp() supplies the pipeline, limiter and defaults. This file adds only the runner's two
-// trusted endpoints: a controlled clock and a store snapshot.
+// trusted endpoints: a controlled clock and a store snapshot. It also replaces the random sources,
+// so two boots of one commit answer the same probe sequence with the same bytes.
 
+import { createRequire } from 'node:module';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createApp } from '../../src/server.ts';
-import { Store } from '../../src/store.ts';
 
 type RequestListener = (req: IncomingMessage, res: ServerResponse) => void;
 
@@ -20,12 +20,103 @@ const STORE_PATH = '/__acan/store';
 const EPOCH_MS = Date.UTC(2026, 0, 1);
 const MAX_ADVANCE_MS = 24 * 60 * 60 * 1000;
 const MAX_CLOCK_BODY_BYTES = 1024;
+const RANDOM_SEED = 'acan-demo boot fixture v1';
 
 // Session expiry and rate-limit windows read the clock. Both time sources come from one value,
 // so base A, base B and the candidate run on the same schedule.
 const clock = { nowMs: EPOCH_MS };
-Date.now = () => clock.nowMs;
+
+// `new Date()` does not consult Date.now, so the constructor is replaced as well. The app stamps
+// createdAt with it, and the dashboard page prints that value without a mask.
+const RealDate = Date;
+class ClockDate extends RealDate {
+  constructor(...args: unknown[]) {
+    if (args.length === 0) super(clock.nowMs);
+    else super(...(args as [number]));
+  }
+
+  static now(): number {
+    return clock.nowMs;
+  }
+}
+globalThis.Date = ClockDate as DateConstructor;
 performance.now = () => clock.nowMs - EPOCH_MS;
+
+// The app's crypto calls bind their names when the app's modules link. The replacements are
+// installed before the dynamic imports below, so every module sees them.
+const nodeCrypto: typeof import('node:crypto') = createRequire(import.meta.url)('node:crypto');
+const { createHash } = nodeCrypto;
+const seedKey = createHash('sha256').update(RANDOM_SEED).digest();
+let blockCount = 0;
+
+/** SHA-256 over the seed and a counter. Two boots that draw in the same order get the same bytes. */
+function seededBytes(size: number): Buffer {
+  const out = Buffer.alloc(size);
+  for (let offset = 0; offset < size; offset += 32) {
+    const block = createHash('sha256').update(seedKey).update(String(blockCount++)).digest();
+    block.copy(out, offset, 0, Math.min(32, size - offset));
+  }
+  return out;
+}
+
+function requireSynchronous(name: string, args: unknown[]): void {
+  if (args.some((arg) => typeof arg === 'function')) {
+    throw new Error(`boot fixture: ${name} is seeded for the synchronous form only`);
+  }
+}
+
+function seededInt(...args: unknown[]): number {
+  requireSynchronous('randomInt', args);
+  const [first, second] = args as number[];
+  const low = second === undefined ? 0 : first;
+  const span = (second === undefined ? first : second) - low;
+  if (!Number.isSafeInteger(span) || span < 1 || span > 2 ** 32) {
+    throw new RangeError('boot fixture: randomInt span must be from 1 to 2^32');
+  }
+  const limit = 2 ** 32 - (2 ** 32 % span);
+  for (;;) {
+    const value = seededBytes(4).readUInt32BE(0);
+    if (value < limit) return low + (value % span);
+  }
+}
+
+function seededUUID(): string {
+  const bytes = seededBytes(16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function seededFillSync<T extends ArrayBufferView>(
+  buffer: T,
+  offset = 0,
+  size = buffer.byteLength - offset,
+): T {
+  new Uint8Array(buffer.buffer, buffer.byteOffset + offset, size).set(seededBytes(size));
+  return buffer;
+}
+
+Object.assign(nodeCrypto, {
+  randomBytes: (...args: unknown[]) => {
+    requireSynchronous('randomBytes', args);
+    return seededBytes(args[0] as number);
+  },
+  randomFillSync: seededFillSync,
+  randomFill: () => {
+    throw new Error('boot fixture: randomFill is not seeded; use randomFillSync');
+  },
+  randomInt: seededInt,
+  randomUUID: seededUUID,
+});
+Math.random = () => seededBytes(4).readUInt32BE(0) / 2 ** 32;
+Object.assign(globalThis.crypto, {
+  randomUUID: seededUUID,
+  getRandomValues: <T extends ArrayBufferView>(array: T): T => seededFillSync(array),
+});
+
+const { createApp } = await import('../../src/server.ts');
+const { Store } = await import('../../src/store.ts');
 
 // A new process gets a new store. The runner starts one process for every probe sequence.
 const store = new Store();
@@ -105,7 +196,9 @@ function parseAdvance(text: string): number | undefined {
  * The store keeps its maps private, so the snapshot reads them directly and sees the app's real
  * state. A changed layout fails the snapshot instead of returning an empty one.
  */
-function snapshotStore(target: Store): Record<'users' | 'sessions' | 'links', unknown[]> {
+function snapshotStore(
+  target: InstanceType<typeof Store>,
+): Record<'users' | 'sessions' | 'links', unknown[]> {
   const maps = target as unknown as Partial<StoreMaps>;
   if (
     !(maps.usersById instanceof Map) ||
