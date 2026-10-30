@@ -794,14 +794,6 @@
             "request": { "method": "GET", "path": "/missing-code-xyz" },
             "redirect": "manual",
             "deadline_ms": 2000
-          },
-          {
-            "step": "http",
-            "id": "s6",
-            "client": "client-a",
-            "request": { "method": "GET", "path": "/api/unknown-path" },
-            "redirect": "manual",
-            "deadline_ms": 2000
           }
         ]
       },
